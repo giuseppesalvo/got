@@ -111,7 +111,17 @@ var ColorsStates got.StatesMap = got.StatesMap{
         WaitForAnswer: true,
         
         SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
-            got.SendMessage( "Are you sure? ( yes, no )", user )
+
+            markup := &got.ReplyMarkup{
+                ReplyKeyboard: [][]got.ReplyButton{
+                    []got.ReplyButton{
+                        got.ReplyButton{Text: "yes"},
+                        got.ReplyButton{Text: "no"},
+                    },
+                },
+            })
+
+            got.SendMessage( "Are you sure?", user, markup )
         },
     
         GetNextKey: func(bot *got.Bot, user *got.User, state *got.UserState, answer got.Message) (got.StateKeyType, bool) {
