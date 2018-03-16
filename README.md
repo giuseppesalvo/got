@@ -9,7 +9,7 @@
     - Reactor -> Send something after a message
     - Conversational -> It helps you to create conversational commands without loosing the current user state
 
-## Bot
+## Bot
 
 ```go
 
@@ -47,7 +47,7 @@ func ( actions SayHelloEvents ) OnText(pl *got.ReactorPlugin, b *got.Bot, msg go
 }
 ```
 
-## Conversational Plugin
+## Conversational Plugin
 
 **Plugin creation**
 ```go
