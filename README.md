@@ -37,13 +37,13 @@ sayhello, _ := got.NewPlugin( got.ConversationalSettings{
 ```go
 type SayHelloEvents struct {}
 
-func ( actions SayHelloEvents ) OnBotInit(pl *got.ReactorPlugin, b *got.Bot) {
+func ( actions SayHelloEvents ) OnBotInit(pl *got.ReactorPlugin, bot *got.Bot) {
     // Things to do when your bot starts for the first time
 }
 
-func ( actions SayHelloEvents ) OnText(pl *got.ReactorPlugin, b *got.Bot, msg got.Message) {
+func ( actions SayHelloEvents ) OnText(pl *got.ReactorPlugin, bot *got.Bot, msg got.Message) {
     t := fmt.Sprintf("Hello %s!", msg.Sender.Name)
-    b.SendMessage(t, msg.Sender)
+    bot.SendMessage(t, msg.Sender)
 }
 ```
 
@@ -81,7 +81,18 @@ func ( actions ColorsEvents ) OnAnswer(pl *got.ConversationalPlugin, bot *got.Bo
 }
 ```
 
-**States**
+**State struct**
+```go
+type State struct {
+    WaitForAnswer bool
+    Finish        bool
+    SendQuestion  func(bot *Bot, user *User, state *UserState)
+    GetNextKey    func(bot *Bot, user *User, state *UserState, answer Message) (StateKeyType, bool)
+}
+```
+
+**State example**
+
 ```go
 
 const (
@@ -97,7 +108,7 @@ var ColorsStates got.StatesMap = got.StatesMap{
         WaitForAnswer: true,
 
         SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
-            got.SendMessage( "What color do you like?", user )
+            bot.SendMessage( "What color do you like?", user )
         },
 
         GetNextKey: func(bot *got.Bot, user *got.User, state *got.UserState, answer got.Message) (got.StateKeyType, bool) {
@@ -111,17 +122,7 @@ var ColorsStates got.StatesMap = got.StatesMap{
         WaitForAnswer: true,
         
         SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
-
-            markup := &got.ReplyMarkup{
-                ReplyKeyboard: [][]got.ReplyButton{
-                    []got.ReplyButton{
-                        got.ReplyButton{Text: "yes"},
-                        got.ReplyButton{Text: "no"},
-                    },
-                },
-            })
-
-            got.SendMessage( "Are you sure?", user, markup )
+            bot.SendMessage( "Are you sure? (yes, no)", user )
         },
     
         GetNextKey: func(bot *got.Bot, user *got.User, state *got.UserState, answer got.Message) (got.StateKeyType, bool) {
@@ -145,23 +146,10 @@ var ColorsStates got.StatesMap = got.StatesMap{
         Finish: true,
         
         SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
-            got.SendMessage( "Thank you! :)", user )
+            bot.SendMessage( "Thank you! :)", user )
         },
     
     },
-}
-
-```
-
-**States struct**
-
-```go
-
-type State struct {
-    WaitForAnswer bool
-    Finish        bool
-    SendQuestion  func(bot *Bot, user *User, state *UserState)
-    GetNextKey    func(bot *Bot, user *User, state *UserState, answer Message) (StateKeyType, bool)
 }
 
 ```
@@ -199,4 +187,19 @@ func (storage *MapPluginStorage) DeleteSessionForUserId(id string) {
     delete(storage.sessions, id)
 }
 
+```
+
+**Keyboard Markup**
+
+```go
+markup := &got.ReplyMarkup{
+    ReplyKeyboard: [][]got.ReplyButton{
+        []got.ReplyButton{
+            got.ReplyButton{Text: "yes"},
+            got.ReplyButton{Text: "no"},
+        },
+    },
+})
+
+bot.SendMessage("Are you sure", sender, markup)
 ```

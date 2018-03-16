@@ -1,4 +1,4 @@
-package bot
+package got
 
 /**
  * Customizable PluginStorage for retrieving user sessions in conversational plugins

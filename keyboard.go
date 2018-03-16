@@ -1,4 +1,4 @@
-package bot
+package got
 
 type ReplyMarkup struct {
 	ReplyKeyboardRemove bool
