@@ -143,6 +143,19 @@ var ColorsStates got.StatesMap = got.StatesMap{
 
 ```
 
+**States struct**
+
+```go
+
+type State struct {
+    WaitForAnswer bool
+    Finish        bool
+    SendQuestion  func(bot *Bot, user *User, state *UserState)
+    GetNextKey    func(bot *Bot, user *User, state *UserState, answer Message) (StateKeyType, bool)
+}
+
+```
+
 **Storage Interface**
 
 ```go
