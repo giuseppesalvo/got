@@ -1,34 +1,35 @@
 # Work in progress
 
 # Framework for making bots with go
+
 - Modes 
-	- Debug    -> debug your bot from the terminal
-	- Telegram -> based on tucnak/telebot.v2
+    - Debug    -> debug your bot from the terminal
+    - Telegram -> based on tucnak/telebot.v2
 - Plugins
-	- Reactor -> Send something after a message
-	- Conversational -> It helps you to create conversational commands without loosing the current user state
+    - Reactor -> Send something after a message
+    - Conversational -> It helps you to create conversational commands without loosing the current user state
 
 ## Bot
 
 ```go
 
 b, err := got.NewBot( got.BotSettings{
-	Token: myTelegramToken,
-	Mode: got.ModeDebug,
-	Plugins: []got.Plugin{ yourplugin },
+    Token: myTelegramToken,
+    Mode: got.ModeDebug,
+    Plugins: []got.Plugin{ yourplugin },
 })
 
 ```
 
-## Reactor Plugin**
+## Reactor Plugin
 
 **Plugin creation**
 ```go
 
 sayhello, _ := got.NewPlugin( got.ConversationalSettings{
-	Name: "sayhello",
-	Trigger: "/hello", // can be a regex with regexp prefix -> "regexp (hi|hello)"
-	Events: SayHelloEvents{},
+    Name: "sayhello",
+    Trigger: "/hello", // can be a regex with regexp prefix -> "regexp (hi|hello)"
+    Events: SayHelloEvents{},
 })
 ```
 
@@ -37,12 +38,12 @@ sayhello, _ := got.NewPlugin( got.ConversationalSettings{
 type SayHelloEvents struct {}
 
 func ( actions SayHelloEvents ) OnBotInit(pl *got.ReactorPlugin, b *got.Bot) {
-	// Things to do when your bot starts for the first time
+    // Things to do when your bot starts for the first time
 }
 
 func ( actions SayHelloEvents ) OnText(pl *got.ReactorPlugin, b *got.Bot, msg got.Message) {
-	t := fmt.Sprintf("Hello %s!", msg.Sender.Name)
-	b.SendMessage(t, msg.Sender)
+    t := fmt.Sprintf("Hello %s!", msg.Sender.Name)
+    b.SendMessage(t, msg.Sender)
 }
 ```
 
@@ -52,12 +53,12 @@ func ( actions SayHelloEvents ) OnText(pl *got.ReactorPlugin, b *got.Bot, msg go
 ```go
 
 Colors, _ := got.NewPlugin( got.ConversationalSettings{
-	Name: "black_or_white",
-	Trigger: "/black_or_white",
-	States: ColorsStates,
-	StateStartKey: START_LOGIN,
-	Events: ColorsEvents{},
-	// Storage: YourCustomStorage that follow got.PluginStorage interface
+    Name: "black_or_white",
+    Trigger: "/black_or_white",
+    States: ColorsStates,
+    StateStartKey: START_LOGIN,
+    Events: ColorsEvents{},
+    // Storage: YourCustomStorage that follow got.PluginStorage interface
 })
 
 ```
@@ -73,7 +74,7 @@ func ( actions ColorsEvents ) OnSessionStart(pl *got.ConversationalPlugin, bot *
 }
 
 func ( actions ColorsEvents ) OnSessionEnd(pl *got.ConversationalPlugin, bot *got.Bot, user *got.User, state *got.UserState) {
-	
+    
 }
 
 func ( actions ColorsEvents ) OnAnswer(pl *got.ConversationalPlugin, bot *got.Bot, user *got.User, answer got.UserAnswer, state *got.UserState) {
@@ -84,60 +85,60 @@ func ( actions ColorsEvents ) OnAnswer(pl *got.ConversationalPlugin, bot *got.Bo
 ```go
 
 const (
-	START_COLORS got.StateKeyType = iota
-	CONFIRM_COLORS
-	END_COLORS
+    START_COLORS got.StateKeyType = iota
+    CONFIRM_COLORS
+    END_COLORS
 )
 
 var ColorsStates got.StatesMap = got.StatesMap{
 
-	START_COLORS: got.State{
+    START_COLORS: got.State{
 
-		WaitForAnswer: true,
+        WaitForAnswer: true,
 
-		SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
-			got.SendMessage( "What color do you like?", user )
-		},
+        SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
+            got.SendMessage( "What color do you like?", user )
+        },
 
-		GetNextKey: func(bot *got.Bot, user *got.User, state *got.UserState, answer got.Message) (got.StateKeyType, bool) {
-			return CONFIRM_COLORS, true
-		},
-	
-	},
+        GetNextKey: func(bot *got.Bot, user *got.User, state *got.UserState, answer got.Message) (got.StateKeyType, bool) {
+            return CONFIRM_COLORS, true
+        },
+    
+    },
 
-	CONFIRM_COLORS: got.State{
+    CONFIRM_COLORS: got.State{
 
-		WaitForAnswer: true,
-		
-		SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
-			got.SendMessage( "Are you sure? ( yes, no )", user )
-		},
-	
-		GetNextKey: func(bot *got.Bot, user *got.User, state *got.UserState, answer got.Message) (got.StateKeyType, bool) {
-			
-			if answer.Text == "yes" {
-				return END_COLORS, true
-			}
+        WaitForAnswer: true,
+        
+        SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
+            got.SendMessage( "Are you sure? ( yes, no )", user )
+        },
+    
+        GetNextKey: func(bot *got.Bot, user *got.User, state *got.UserState, answer got.Message) (got.StateKeyType, bool) {
+            
+            if answer.Text == "yes" {
+                return END_COLORS, true
+            }
 
-			if answer.Text == "no" {
-				return START_COLORS, true
-			}
+            if answer.Text == "no" {
+                return START_COLORS, true
+            }
 
-			bot.SendMessage('permitted answers (yes, no)')
-			return CONFIRM_COLORS, false
-		},
+            bot.SendMessage('permitted answers (yes, no)')
+            return CONFIRM_COLORS, false
+        },
 
-	},
+    },
 
-	END_COLORS: got.State{
+    END_COLORS: got.State{
 
-		Finish: true,
-		
-		SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
-			got.SendMessage( "Thank you! :)", user )
-		},
-	
-	},
+        Finish: true,
+        
+        SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
+            got.SendMessage( "Thank you! :)", user )
+        },
+    
+    },
 }
 
 ```
