@@ -6,21 +6,29 @@ import (
 
 // Types
 
-type ConversationalEvents interface {
-	OnBotInit(pl *ConversationalPlugin, bot *Bot)
-	OnSessionStart(pl *ConversationalPlugin, bot *Bot, user *User, state *UserState)
-	OnAnswer(pl *ConversationalPlugin, bot *Bot, user *User, answer UserAnswer, state *UserState)
-	OnSessionEnd(pl *ConversationalPlugin, bot *Bot, user *User, state *UserState)
+type ConversationalCtx struct {
+	Plugin *ConversationalPlugin
+	Bot *Bot
+	User *User
+	Answer Message
+	UserState *UserState
 }
 
-type StateKeyType int
-type StatesMap map[StateKeyType]State
+type ConversationalEvents interface {
+	OnBotInit( ctx *ConversationalCtx )
+	OnSessionStart( ctx *ConversationalCtx )
+	OnAnswer( ctx *ConversationalCtx )
+	OnSessionEnd( ctx *ConversationalCtx )
+}
+
+type StateKey int
+type StatesMap map[StateKey]State
 
 type ConversationalSettings struct {
 	Name          string
 	Trigger       string
 	States        StatesMap
-	StateStartKey StateKeyType
+	StateStartKey StateKey
 	Events        ConversationalEvents
 	Storage       PluginStorage
 }
@@ -29,31 +37,38 @@ type ConversationalPlugin struct {
 	Name          string
 	Trigger       string
 	States        StatesMap
-	StateStartKey StateKeyType
+	StateStartKey StateKey
 	Events        ConversationalEvents
 	Storage       PluginStorage
+}
+
+type StateCtx struct {
+	Bot 	  *Bot
+	User 	  *User
+	UserState *UserState
+	Answer 	  Message
 }
 
 type State struct {
 	WaitForAnswer bool
 	Finish        bool
-	SendQuestion  func(bot *Bot, user *User, state *UserState)
-	GetNextKey    func(bot *Bot, user *User, state *UserState, answer Message) (StateKeyType, bool)
+	SendQuestion  func(ctx *StateCtx)
+	GetNextKey    func(ctx *StateCtx) (StateKey, bool)
 }
 
 type UserAnswer struct {
 	Answer   string
-	StateKey StateKeyType
+	StateKey StateKey
 }
 
 type UserState struct {
 	UserId          string
-	CurrentStateKey StateKeyType
+	CurrentStateKey StateKey
 	Answers         []UserAnswer
 	CreatedAt       time.Time
 }
 
-func (state *UserState) getAnswersForStateKey(key StateKeyType) []UserAnswer {
+func (state *UserState) getAnswersForStateKey(key StateKey) []UserAnswer {
 	answers := []UserAnswer{}
 
 	for _, answ := range state.Answers {
@@ -91,7 +106,11 @@ func NewConversationalPlugin(settings ConversationalSettings) *ConversationalPlu
 // Methods that implements the Plugin interface
 
 func (pl *ConversationalPlugin) onInit(bot *Bot) {
-	pl.Events.OnBotInit(pl, bot)
+	ctx := &ConversationalCtx{
+		Plugin: pl,
+		Bot: bot,
+	}
+	pl.Events.OnBotInit(ctx)
 }
 
 func (pl *ConversationalPlugin) onText(bot *Bot, msg Message) {
@@ -134,7 +153,14 @@ func (pl *ConversationalPlugin) run(bot *Bot, msg Message) {
 
 func (pl *ConversationalPlugin) goToNextState(bot *Bot, msg Message, userState *UserState, state State) {
 
-	newIndex, ok := state.GetNextKey(bot, msg.Sender, userState, msg)
+	ctx := &StateCtx{
+		Bot: bot,
+		User: msg.Sender,
+		UserState: userState,
+		Answer: msg,
+	}
+
+	newIndex, ok := state.GetNextKey(ctx)
 
 	/*
 	 * If the new index is not ok,
@@ -150,7 +176,15 @@ func (pl *ConversationalPlugin) goToNextState(bot *Bot, msg Message, userState *
 		}
 		userState.Answers = append(userState.Answers, answer)
 
-		pl.Events.OnAnswer(pl, bot, msg.Sender, answer, userState)
+		pl_ctx := &ConversationalCtx{
+			Plugin: pl,
+			Bot: bot,
+			User: msg.Sender,
+			Answer: msg,
+			UserState: userState,
+		}
+
+		pl.Events.OnAnswer(pl_ctx)
 
 		userState.CurrentStateKey = newIndex
 		pl.sendQuestionForUserState(userState, bot, msg)
@@ -160,12 +194,30 @@ func (pl *ConversationalPlugin) goToNextState(bot *Bot, msg Message, userState *
 
 func (pl *ConversationalPlugin) startSession(bot *Bot, msg Message) {
 	userState := pl.getUserState(msg.Sender)
-	pl.Events.OnSessionStart(pl, bot, msg.Sender, userState)
+
+	pl_ctx := &ConversationalCtx{
+		Plugin: pl,
+		Bot: bot,
+		User: msg.Sender,
+		Answer: msg,
+		UserState: userState,
+	}
+
+	pl.Events.OnSessionStart(pl_ctx)
 	pl.sendQuestionForUserState(userState, bot, msg)
 }
 
 func (pl *ConversationalPlugin) endSession(bot *Bot, msg Message, userState *UserState) {
-	pl.Events.OnSessionEnd(pl, bot, msg.Sender, userState)
+
+	pl_ctx := &ConversationalCtx{
+		Plugin: pl,
+		Bot: bot,
+		User: msg.Sender,
+		Answer: msg,
+		UserState: userState,
+	}
+
+	pl.Events.OnSessionEnd(pl_ctx)
 	pl.Storage.DeleteSessionForUserId(msg.Sender.Id)
 }
 
@@ -197,7 +249,15 @@ func (pl *ConversationalPlugin) sendQuestionForUserState(userState *UserState, b
 	state := pl.States[userState.CurrentStateKey]
 
 	if state.SendQuestion != nil {
-		state.SendQuestion(bot, currentMsg.Sender, userState)
+
+		ctx := &StateCtx{
+			Bot: bot,
+			User: currentMsg.Sender,
+			UserState: userState,
+			Answer: currentMsg,
+		}
+
+		state.SendQuestion(ctx)
 	}
 
 	if !state.WaitForAnswer {

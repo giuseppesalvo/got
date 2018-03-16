@@ -2,9 +2,15 @@ package got
 
 // Types
 
+type ReactorCtx struct {
+	Plugin  *ReactorPlugin
+	Bot     *Bot
+	Message Message
+}
+
 type ReactorEvents interface {
-	OnBotInit(pl *ReactorPlugin, bot *Bot)
-	OnText(pl *ReactorPlugin, bot *Bot, msg Message)
+	OnBotInit( ctx *ReactorCtx )
+	OnText( ctx *ReactorCtx )
 }
 
 type ReactorSettings struct {
@@ -32,7 +38,12 @@ func NewReactorPlugin(settings ReactorSettings) *ReactorPlugin {
 // Methods that implements the Plugin interface
 
 func (pl *ReactorPlugin) onInit(bot *Bot) {
-	pl.Events.OnBotInit(pl, bot)
+	ctx := &ReactorCtx{
+		Plugin: pl,
+		Bot: bot,
+	}
+
+	pl.Events.OnBotInit(ctx)
 }
 
 func (pl *ReactorPlugin) onText(bot *Bot, msg Message) {
@@ -47,5 +58,12 @@ func (pl *ReactorPlugin) onText(bot *Bot, msg Message) {
 // Run the plugin
 
 func (pl *ReactorPlugin) run(bot *Bot, msg Message) {
-	pl.Events.OnText(pl, bot, msg)
+
+	ctx := &ReactorCtx{
+		Plugin: pl,
+		Bot: bot,
+		Message: msg,
+	}
+
+	pl.Events.OnText(ctx)
 }
