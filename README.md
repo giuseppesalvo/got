@@ -37,13 +37,13 @@ sayhello, _ := got.NewPlugin( got.ConversationalSettings{
 ```go
 type SayHelloEvents struct {}
 
-func ( actions SayHelloEvents ) OnBotInit(pl *got.ReactorPlugin, bot *got.Bot) {
+func ( actions SayHelloEvents ) OnBotInit( ctx *got.ReactorCtx ) {
     // Things to do when your bot starts for the first time
 }
 
-func ( actions SayHelloEvents ) OnText(pl *got.ReactorPlugin, bot *got.Bot, msg got.Message) {
+func ( actions SayHelloEvents ) OnText( ctx *got.ReactorCtx ) {
     t := fmt.Sprintf("Hello %s!", msg.Sender.Name)
-    bot.SendMessage(t, msg.Sender)
+    ctx.Bot.SendMessage(t, msg.Sender)
 }
 ```
 
@@ -53,8 +53,8 @@ func ( actions SayHelloEvents ) OnText(pl *got.ReactorPlugin, bot *got.Bot, msg 
 ```go
 
 Colors, _ := got.NewPlugin( got.ConversationalSettings{
-    Name: "black_or_white",
-    Trigger: "/black_or_white",
+    Name: "colors",
+    Trigger: "/colors",
     States: ColorsStates,
     StateStartKey: START_LOGIN,
     Events: ColorsEvents{},
@@ -67,17 +67,17 @@ Colors, _ := got.NewPlugin( got.ConversationalSettings{
 ```go
 type ColorsEvents struct {}
 
-func ( actions ColorsEvents ) OnBotInit(pl *got.ConversationalPlugin, bot *got.Bot) {
+func ( actions ColorsEvents ) OnBotInit( ctx *ConversationalCtx ) {
 }
 
-func ( actions ColorsEvents ) OnSessionStart(pl *got.ConversationalPlugin, bot *got.Bot, user *got.User, state *got.UserState) {
+func ( actions ColorsEvents ) OnSessionStart( ctx *ConversationalCtx ) {
 }
 
-func ( actions ColorsEvents ) OnSessionEnd(pl *got.ConversationalPlugin, bot *got.Bot, user *got.User, state *got.UserState) {
+func ( actions ColorsEvents ) OnSessionEnd( ctx *ConversationalCtx ) {
     
 }
 
-func ( actions ColorsEvents ) OnAnswer(pl *got.ConversationalPlugin, bot *got.Bot, user *got.User, answer got.UserAnswer, state *got.UserState) {
+func ( actions ColorsEvents ) OnAnswer( ctx *ConversationalCtx ) {
 }
 ```
 
@@ -86,8 +86,8 @@ func ( actions ColorsEvents ) OnAnswer(pl *got.ConversationalPlugin, bot *got.Bo
 type State struct {
     WaitForAnswer bool
     Finish        bool
-    SendQuestion  func(bot *Bot, user *User, state *UserState)
-    GetNextKey    func(bot *Bot, user *User, state *UserState, answer Message) (StateKeyType, bool)
+    SendQuestion  func( ctx *ConversationalCtx )
+    GetNextKey    func( ctx *ConversationalCtx ) (StateKey, bool)
 }
 ```
 
@@ -96,7 +96,7 @@ type State struct {
 ```go
 
 const (
-    START_COLORS got.StateKeyType = iota
+    START_COLORS got.StateKey = iota
     CONFIRM_COLORS
     END_COLORS
 )
@@ -107,11 +107,11 @@ var ColorsStates got.StatesMap = got.StatesMap{
 
         WaitForAnswer: true,
 
-        SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
-            bot.SendMessage( "What color do you like?", user )
+        SendQuestion: func( ctx *got.ConversationalCtx ) {
+            ctx.Bot.SendMessage( "What color do you like?", ctx.User )
         },
 
-        GetNextKey: func(bot *got.Bot, user *got.User, state *got.UserState, answer got.Message) (got.StateKeyType, bool) {
+        GetNextKey: func( ctx *got.ConversationalCtx ) (got.StateKey, bool) {
             return CONFIRM_COLORS, true
         },
     
@@ -121,11 +121,11 @@ var ColorsStates got.StatesMap = got.StatesMap{
 
         WaitForAnswer: true,
         
-        SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
-            bot.SendMessage( "Are you sure? (yes, no)", user )
+        SendQuestion: func( ctx *got.ConversationalCtx ) {
+            ctx.Bot.SendMessage( "Are you sure? (yes, no)", ctx.User )
         },
     
-        GetNextKey: func(bot *got.Bot, user *got.User, state *got.UserState, answer got.Message) (got.StateKeyType, bool) {
+        GetNextKey: func( ctx *got.ConversationalCtx ) (got.StateKey, bool) {
             
             if answer.Text == "yes" {
                 return END_COLORS, true
@@ -135,7 +135,7 @@ var ColorsStates got.StatesMap = got.StatesMap{
                 return START_COLORS, true
             }
 
-            bot.SendMessage('permitted answers (yes, no)')
+            ctx.Bot.SendMessage('permitted answers (yes, no)', ctx.User)
             return CONFIRM_COLORS, false
         },
 
@@ -145,8 +145,8 @@ var ColorsStates got.StatesMap = got.StatesMap{
 
         Finish: true,
         
-        SendQuestion: func(bot *got.Bot, user *got.User, state *got.UserState) {
-            bot.SendMessage( "Thank you! :)", user )
+        SendQuestion: func( ctx *got.ConversationalCtx ) {
+            ctx.Bot.SendMessage( "Thank you! :)", ctx.User )
         },
     
     },
