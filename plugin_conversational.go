@@ -66,6 +66,7 @@ type UserState struct {
 	CurrentStateKey StateKey
 	Answers         []UserAnswer
 	CreatedAt       time.Time
+	Cronology 		[]Message
 }
 
 func (state *UserState) getAnswersForStateKey(key StateKey) []UserAnswer {
@@ -175,6 +176,7 @@ func (pl *ConversationalPlugin) goToNextState(bot *Bot, msg Message, userState *
 			userState.CurrentStateKey,
 		}
 		userState.Answers = append(userState.Answers, answer)
+		userState.Cronology = append(userState.Cronology, msg)
 
 		pl_ctx := &ConversationalCtx{
 			Plugin: pl,
@@ -233,6 +235,7 @@ func (pl *ConversationalPlugin) getUserState(user *User) *UserState {
 			pl.StateStartKey,
 			[]UserAnswer{},
 			time.Now(),
+			[]Message{},
 		}
 		pl.Storage.SetSessionForUserId(user.Id, userState)
 		return userState
