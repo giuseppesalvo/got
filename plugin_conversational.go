@@ -42,18 +42,11 @@ type ConversationalPlugin struct {
 	Storage       PluginStorage
 }
 
-type StateCtx struct {
-	Bot 	  *Bot
-	User 	  *User
-	UserState *UserState
-	Answer 	  Message
-}
-
 type State struct {
 	WaitForAnswer bool
 	Finish        bool
-	SendQuestion  func(ctx *StateCtx)
-	GetNextKey    func(ctx *StateCtx) (StateKey, bool)
+	SendQuestion  func(ctx *ConversationalCtx)
+	GetNextKey    func(ctx *ConversationalCtx) (StateKey, bool)
 }
 
 type UserAnswer struct {
@@ -150,11 +143,17 @@ func (pl *ConversationalPlugin) run(bot *Bot, msg Message) {
 	}
 }
 
+func ( pl *ConversationalPlugin ) RepeatSessionFromCtx( ctx *ConversationalCtx ) {
+	userState := pl.getUserState(ctx.User)
+	pl.sendQuestionForUserState(userState, ctx.Bot, ctx.Answer)
+}
+
 // Utils
 
 func (pl *ConversationalPlugin) goToNextState(bot *Bot, msg Message, userState *UserState, state State) {
 
-	ctx := &StateCtx{
+	ctx := &ConversationalCtx{
+		Plugin: pl,
 		Bot: bot,
 		User: msg.Sender,
 		UserState: userState,
@@ -253,7 +252,8 @@ func (pl *ConversationalPlugin) sendQuestionForUserState(userState *UserState, b
 
 	if state.SendQuestion != nil {
 
-		ctx := &StateCtx{
+		ctx := &ConversationalCtx{
+			Plugin: pl,
 			Bot: bot,
 			User: currentMsg.Sender,
 			UserState: userState,
