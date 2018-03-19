@@ -34,7 +34,7 @@ type ConversationalSettings struct {
 	StateStartKey  StateKey
 	Events         ConversationalEvents
 	Storage        PluginStorage
-	RemindInterval time.Duration
+	RemindAfter    time.Duration
 	ExpireAfter    time.Duration
 }
 
@@ -45,7 +45,7 @@ type ConversationalPlugin struct {
 	StateStartKey  StateKey
 	Events         ConversationalEvents
 	Storage        PluginStorage
-	RemindInterval time.Duration
+	RemindAfter    time.Duration
 	ExpireAfter    time.Duration
 }
 
@@ -67,7 +67,7 @@ type UserState struct {
 	Answers          []UserAnswer
 	CreatedAt        time.Time
 	Cronology 		 []Message
-	ReminderInterval *tm.Interval
+	RemindInterval   *tm.Interval
 	ExpireTimeout    *tm.Timeout
 }
 
@@ -102,7 +102,7 @@ func NewConversationalPlugin(settings ConversationalSettings) *ConversationalPlu
 		States:        settings.States,
 		StateStartKey: settings.StateStartKey,
 		Events:        settings.Events,
-		RemindInterval:   settings.RemindInterval,
+		RemindAfter:   settings.RemindAfter,
 		ExpireAfter:   settings.ExpireAfter,
 		Storage:       storage,
 	}
@@ -134,6 +134,7 @@ func (pl *ConversationalPlugin) run(bot *Bot, msg Message) {
 	if !pl.isSessionRunningForUser(msg.Sender) {
 
 		userState := pl.getUserState(msg.Sender)
+		pl.setRemindIntervalToUserState(userState, bot)
 		pl.setExpireTimeoutToUserState(userState, bot)
 		pl.startSession(bot, msg)
 
@@ -146,13 +147,16 @@ func (pl *ConversationalPlugin) run(bot *Bot, msg Message) {
 
 		if !oldState.Finish {
 
+			pl.setRemindIntervalToUserState(userState, bot)
 			pl.setExpireTimeoutToUserState(userState, bot)
 			pl.goToNextState(bot, msg, userState, oldState)
 
 		} else {
 
+			pl.clearRemindIntervalToUserState(userState, bot)
 			pl.clearExpireTimeoutToUserState(userState, bot)
 			pl.endSession(bot, msg, userState)
+		
 		}
 	}
 }
@@ -246,6 +250,29 @@ func ( pl *ConversationalPlugin ) setExpireTimeoutToUserState( userState *UserSt
 		}, pl.ExpireAfter)
 	}
 } 
+
+func ( pl *ConversationalPlugin ) clearRemindIntervalToUserState( userState *UserState, bot *Bot ) {
+	tm.ClearInterval(userState.RemindInterval)
+}
+
+func ( pl *ConversationalPlugin ) setRemindIntervalToUserState( userState *UserState, bot *Bot ) {
+	if pl.RemindAfter > 0 {
+
+		pl.clearRemindIntervalToUserState(userState, bot)
+
+		userState.RemindInterval = tm.SetInterval(func () {
+
+			pl_ctx := &ConversationalCtx{
+				Plugin: pl,
+				Bot: bot,
+				UserState: userState,
+			}
+
+			pl.Events.OnSessionRemind(pl_ctx)
+
+		}, pl.RemindAfter)
+	}
+}
 
 func (pl *ConversationalPlugin) endSession(bot *Bot, msg Message, userState *UserState) {
 

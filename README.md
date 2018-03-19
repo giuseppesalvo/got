@@ -58,7 +58,7 @@ Colors, _ := got.NewPlugin( got.ConversationalSettings{
     States: ColorsStates,
     StateStartKey: START_LOGIN,
     Events: ColorsEvents{},
-    RemindInterval: 2 * 60 * 1000, // 2 minutes -> Milliseconds
+    RemindAfter: 2 * 60 * 1000, // reminds every to 2 minutes -> Milliseconds
     ExpireAfter: 10 * 60 * 1000, // 10 minutes -> Milliseconds
     // Storage: YourCustomStorage that follow got.PluginStorage interface
 })
