@@ -6,6 +6,7 @@ type ReactorCtx struct {
 	Plugin  *ReactorPlugin
 	Bot     *Bot
 	Message Message
+	User    *User
 }
 
 type ReactorEvents interface {
@@ -63,6 +64,7 @@ func (pl *ReactorPlugin) run(bot *Bot, msg Message) {
 		Plugin: pl,
 		Bot: bot,
 		Message: msg,
+		User: msg.Sender,
 	}
 
 	pl.Events.OnText(ctx)

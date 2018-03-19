@@ -2,6 +2,7 @@ package got
 
 import (
 	"time"
+	"github.com/giuseppesalvo/tm"
 )
 
 // Types
@@ -17,6 +18,7 @@ type ConversationalCtx struct {
 type ConversationalEvents interface {
 	OnBotInit( ctx *ConversationalCtx )
 	OnSessionStart( ctx *ConversationalCtx )
+	OnSessionExpired( ctx *ConversationalCtx )
 	OnAnswer( ctx *ConversationalCtx )
 	OnSessionEnd( ctx *ConversationalCtx )
 }
@@ -31,6 +33,8 @@ type ConversationalSettings struct {
 	StateStartKey StateKey
 	Events        ConversationalEvents
 	Storage       PluginStorage
+	ResendAfter   time.Duration
+	ExpireAfter   time.Duration
 }
 
 type ConversationalPlugin struct {
@@ -40,6 +44,8 @@ type ConversationalPlugin struct {
 	StateStartKey StateKey
 	Events        ConversationalEvents
 	Storage       PluginStorage
+	ResendAfter   time.Duration
+	ExpireAfter   time.Duration
 }
 
 type State struct {
@@ -60,6 +66,8 @@ type UserState struct {
 	Answers         []UserAnswer
 	CreatedAt       time.Time
 	Cronology 		[]Message
+	ResendInterval  *tm.Interval
+	ExpireTimeout   *tm.Timeout
 }
 
 func (state *UserState) getAnswersForStateKey(key StateKey) []UserAnswer {
@@ -93,6 +101,8 @@ func NewConversationalPlugin(settings ConversationalSettings) *ConversationalPlu
 		States:        settings.States,
 		StateStartKey: settings.StateStartKey,
 		Events:        settings.Events,
+		ResendAfter:   settings.ResendAfter,
+		ExpireAfter:   settings.ExpireAfter,
 		Storage:       storage,
 	}
 }
@@ -122,23 +132,26 @@ func (pl *ConversationalPlugin) run(bot *Bot, msg Message) {
 
 	if !pl.isSessionRunningForUser(msg.Sender) {
 
+		userState := pl.getUserState(msg.Sender)
+		pl.setExpireTimeoutToUserState(userState, bot)
 		pl.startSession(bot, msg)
 
 	} else {
-
+		
 		// Session is already running
 
 		userState := pl.getUserState(msg.Sender)
-		oldState := pl.States[userState.CurrentStateKey]
+		oldState := pl.States[userState.CurrentStateKey]	
 
 		if !oldState.Finish {
 
+			pl.setExpireTimeoutToUserState(userState, bot)
 			pl.goToNextState(bot, msg, userState, oldState)
 
 		} else {
 
+			pl.clearExpireTimeoutToUserState(userState, bot)
 			pl.endSession(bot, msg, userState)
-
 		}
 	}
 }
@@ -208,6 +221,31 @@ func (pl *ConversationalPlugin) startSession(bot *Bot, msg Message) {
 	pl.sendQuestionForUserState(userState, bot, msg)
 }
 
+func ( pl *ConversationalPlugin ) clearExpireTimeoutToUserState( userState *UserState, bot *Bot ) {
+	tm.ClearTimeout(userState.ExpireTimeout)
+}
+
+func ( pl *ConversationalPlugin ) setExpireTimeoutToUserState( userState *UserState, bot *Bot ) {
+	if pl.ExpireAfter > 0 {
+
+		pl.clearExpireTimeoutToUserState(userState, bot)
+
+		userState.ExpireTimeout = tm.SetTimeout(func () {
+
+			pl.Storage.DeleteSessionForUserId(userState.UserId)
+
+			pl_ctx := &ConversationalCtx{
+				Plugin: pl,
+				Bot: bot,
+				UserState: userState,
+			}
+
+			pl.Events.OnSessionExpired(pl_ctx)
+
+		}, pl.ExpireAfter)
+	}
+} 
+
 func (pl *ConversationalPlugin) endSession(bot *Bot, msg Message, userState *UserState) {
 
 	pl_ctx := &ConversationalCtx{
@@ -230,11 +268,13 @@ func (pl *ConversationalPlugin) getUserState(user *User) *UserState {
 		return userState
 	} else {
 		userState := &UserState{
-			user.Id,
-			pl.StateStartKey,
-			[]UserAnswer{},
-			time.Now(),
-			[]Message{},
+			UserId: user.Id,
+			CurrentStateKey: pl.StateStartKey,
+			Answers: []UserAnswer{},
+			CreatedAt: time.Now(),
+			Cronology: []Message{},
+			//ResendInterval:  ,
+			//ExpireTimeout:  ,
 		}
 		pl.Storage.SetSessionForUserId(user.Id, userState)
 		return userState
