@@ -34,7 +34,7 @@ type ConversationalSettings struct {
 	StateStartKey  StateKey
 	Events         ConversationalEvents
 	Storage        PluginStorage
-	RemindAfter    time.Duration
+	RemindEvery    time.Duration
 	ExpireAfter    time.Duration
 }
 
@@ -45,7 +45,7 @@ type ConversationalPlugin struct {
 	StateStartKey  StateKey
 	Events         ConversationalEvents
 	Storage        PluginStorage
-	RemindAfter    time.Duration
+	RemindEvery    time.Duration
 	ExpireAfter    time.Duration
 }
 
@@ -102,7 +102,7 @@ func NewConversationalPlugin(settings ConversationalSettings) *ConversationalPlu
 		States:        settings.States,
 		StateStartKey: settings.StateStartKey,
 		Events:        settings.Events,
-		RemindAfter:   settings.RemindAfter,
+		RemindEvery:   settings.RemindEvery,
 		ExpireAfter:   settings.ExpireAfter,
 		Storage:       storage,
 	}
@@ -256,7 +256,7 @@ func ( pl *ConversationalPlugin ) clearRemindIntervalToUserState( userState *Use
 }
 
 func ( pl *ConversationalPlugin ) setRemindIntervalToUserState( userState *UserState, bot *Bot ) {
-	if pl.RemindAfter > 0 {
+	if pl.RemindEvery > 0 {
 
 		pl.clearRemindIntervalToUserState(userState, bot)
 
@@ -270,7 +270,7 @@ func ( pl *ConversationalPlugin ) setRemindIntervalToUserState( userState *UserS
 
 			pl.Events.OnSessionRemind(pl_ctx)
 
-		}, pl.RemindAfter)
+		}, pl.RemindEvery)
 	}
 }
 
