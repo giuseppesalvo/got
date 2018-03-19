@@ -58,6 +58,8 @@ Colors, _ := got.NewPlugin( got.ConversationalSettings{
     States: ColorsStates,
     StateStartKey: START_LOGIN,
     Events: ColorsEvents{},
+    RemindInterval: 2 * 60 * 1000, // 2 minutes -> Milliseconds
+    ExpireAfter: 10 * 60 * 1000, // 10 minutes -> Milliseconds
     // Storage: YourCustomStorage that follow got.PluginStorage interface
 })
 
@@ -71,6 +73,12 @@ func ( actions ColorsEvents ) OnBotInit( ctx *ConversationalCtx ) {
 }
 
 func ( actions ColorsEvents ) OnSessionStart( ctx *ConversationalCtx ) {
+}
+
+func ( actions ColorsEvents ) OnSessionExpired( ctx *ConversationalCtx ) {
+}
+
+func ( actions ColorsEvents ) OnSessionRemind( ctx *ConversationalCtx ) {
 }
 
 func ( actions ColorsEvents ) OnSessionEnd( ctx *ConversationalCtx ) {

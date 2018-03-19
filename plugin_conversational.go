@@ -16,36 +16,37 @@ type ConversationalCtx struct {
 }
 
 type ConversationalEvents interface {
-	OnBotInit( ctx *ConversationalCtx )
-	OnSessionStart( ctx *ConversationalCtx )
-	OnSessionExpired( ctx *ConversationalCtx )
 	OnAnswer( ctx *ConversationalCtx )
+	OnBotInit( ctx *ConversationalCtx )
 	OnSessionEnd( ctx *ConversationalCtx )
+	OnSessionStart( ctx *ConversationalCtx )
+	OnSessionRemind( ctx *ConversationalCtx )
+	OnSessionExpired( ctx *ConversationalCtx )
 }
 
 type StateKey int
 type StatesMap map[StateKey]State
 
 type ConversationalSettings struct {
-	Name          string
-	Trigger       string
-	States        StatesMap
-	StateStartKey StateKey
-	Events        ConversationalEvents
-	Storage       PluginStorage
-	ResendAfter   time.Duration
-	ExpireAfter   time.Duration
+	Name           string
+	Trigger        string
+	States         StatesMap
+	StateStartKey  StateKey
+	Events         ConversationalEvents
+	Storage        PluginStorage
+	RemindInterval time.Duration
+	ExpireAfter    time.Duration
 }
 
 type ConversationalPlugin struct {
-	Name          string
-	Trigger       string
-	States        StatesMap
-	StateStartKey StateKey
-	Events        ConversationalEvents
-	Storage       PluginStorage
-	ResendAfter   time.Duration
-	ExpireAfter   time.Duration
+	Name           string
+	Trigger        string
+	States         StatesMap
+	StateStartKey  StateKey
+	Events         ConversationalEvents
+	Storage        PluginStorage
+	RemindInterval time.Duration
+	ExpireAfter    time.Duration
 }
 
 type State struct {
@@ -61,13 +62,13 @@ type UserAnswer struct {
 }
 
 type UserState struct {
-	UserId          string
-	CurrentStateKey StateKey
-	Answers         []UserAnswer
-	CreatedAt       time.Time
-	Cronology 		[]Message
-	ResendInterval  *tm.Interval
-	ExpireTimeout   *tm.Timeout
+	UserId           string
+	CurrentStateKey  StateKey
+	Answers          []UserAnswer
+	CreatedAt        time.Time
+	Cronology 		 []Message
+	ReminderInterval *tm.Interval
+	ExpireTimeout    *tm.Timeout
 }
 
 func (state *UserState) getAnswersForStateKey(key StateKey) []UserAnswer {
@@ -101,7 +102,7 @@ func NewConversationalPlugin(settings ConversationalSettings) *ConversationalPlu
 		States:        settings.States,
 		StateStartKey: settings.StateStartKey,
 		Events:        settings.Events,
-		ResendAfter:   settings.ResendAfter,
+		RemindInterval:   settings.RemindInterval,
 		ExpireAfter:   settings.ExpireAfter,
 		Storage:       storage,
 	}
@@ -273,7 +274,7 @@ func (pl *ConversationalPlugin) getUserState(user *User) *UserState {
 			Answers: []UserAnswer{},
 			CreatedAt: time.Now(),
 			Cronology: []Message{},
-			//ResendInterval:  ,
+			//ReminderInterval:  ,
 			//ExpireTimeout:  ,
 		}
 		pl.Storage.SetSessionForUserId(user.Id, userState)
