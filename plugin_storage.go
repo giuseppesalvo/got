@@ -5,26 +5,26 @@ package got
  */
 
 type PluginStorage interface {
-	GetSessionFromUserId(id string) (*UserState, bool)
-	SetSessionForUserId(id string, state *UserState)
+	GetSessionByUserId(id string) (*Session, bool)
+	SetSessionForUserId(id string, state *Session)
 	DeleteSessionForUserId(id string)
 }
 
 /**
- * In memory storage with map[string]*UserState
+ * In memory storage with map[string]*Session
  * Default bot storage
  */
 
 type MapPluginStorage struct {
-	sessions map[string]*UserState
+	sessions map[string]*Session
 }
 
-func (storage *MapPluginStorage) GetSessionFromUserId(id string) (*UserState, bool) {
+func (storage *MapPluginStorage) GetSessionByUserId(id string) (*Session, bool) {
 	state, ok := storage.sessions[id]
 	return state, ok
 }
 
-func (storage *MapPluginStorage) SetSessionForUserId(id string, state *UserState) {
+func (storage *MapPluginStorage) SetSessionForUserId(id string, state *Session) {
 	storage.sessions[id] = state
 }
 

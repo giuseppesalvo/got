@@ -56,7 +56,6 @@ Colors, _ := got.NewPlugin( got.ConversationalSettings{
     Name: "colors",
     Trigger: "/colors",
     States: ColorsStates,
-    StateStartKey: START_LOGIN,
     Events: ColorsEvents{},
     RemindEvery: 2 * 60 * 1000, // reminds every to 2 minutes -> Milliseconds
     ExpireAfter: 10 * 60 * 1000, // 10 minutes -> Milliseconds
@@ -89,75 +88,47 @@ func ( actions ColorsEvents ) OnAnswer( ctx *ConversationalCtx ) {
 }
 ```
 
-**State struct**
+**States**
+
 ```go
-type State struct {
-    WaitForAnswer bool
-    Finish        bool
-    SendQuestion  func( ctx *ConversationalCtx )
-    GetNextKey    func( ctx *ConversationalCtx ) (StateKey, bool)
-}
+
+type StateFn func( ctx *ConversationalCtx )
+type States []StateFn
+
 ```
 
 **State example**
 
 ```go
 
-const (
-    START_COLORS got.StateKey = iota
-    CONFIRM_COLORS
-    END_COLORS
-)
+var ColorsStates got.States = got.States{
 
-var ColorsStates got.StatesMap = got.StatesMap{
-
-    START_COLORS: got.State{
-
-        WaitForAnswer: true,
-
-        SendQuestion: func( ctx *got.ConversationalCtx ) {
-            ctx.Bot.SendMessage( "What color do you like?", ctx.User )
-        },
-
-        GetNextKey: func( ctx *got.ConversationalCtx ) (got.StateKey, bool) {
-            return CONFIRM_COLORS, true
-        },
-    
+    func( ctx *got.ConversationalCtx ) {
+        ctx.Bot.SendMessage( "What color do you like?", ctx.User )
+        ctx.Bot.WaitForAnswer(ctx)
     },
 
-    CONFIRM_COLORS: got.State{
+    func( ctx *got.ConversationalCtx ) {
+        ctx.Bot.SendMessage( "Are you sure? (yes, no)", ctx.User )
+        ctx.Bot.WaitForAnswer(ctx)
+    },
 
-        WaitForAnswer: true,
+    func( ctx *got.ConversationalCtx ) {
         
-        SendQuestion: func( ctx *got.ConversationalCtx ) {
-            ctx.Bot.SendMessage( "Are you sure? (yes, no)", ctx.User )
-        },
-    
-        GetNextKey: func( ctx *got.ConversationalCtx ) (got.StateKey, bool) {
+        switch ctx.Answer.Text {
+            case "yes":
+                ctx.Bot.SendMessage('Thank you!', ctx.User)
+                ctx.Session.End(ctx)
             
-            if answer.Text == "yes" {
-                return END_COLORS, true
-            }
-
-            if answer.Text == "no" {
-                return START_COLORS, true
-            }
-
-            ctx.Bot.SendMessage('permitted answers (yes, no)', ctx.User)
-            return CONFIRM_COLORS, false
-        },
-
-    },
-
-    END_COLORS: got.State{
-
-        Finish: true,
-        
-        SendQuestion: func( ctx *got.ConversationalCtx ) {
-            ctx.Bot.SendMessage( "Thank you! :)", ctx.User )
-        },
-    
-    },
+            case "no":
+                ctx.Bot.SendMessage('Ok, what color do you like?', ctx.User)
+                ctx.Session.StayHere(ctx)
+            
+            default: 
+                ctx.Bot.SendMessage('Permitted answers (yes, no)', ctx.User)
+                ctx.Session.Error(ctx)
+        }
+    }
 }
 
 ```
@@ -167,7 +138,7 @@ var ColorsStates got.StatesMap = got.StatesMap{
 ```go
 
 type PluginStorage interface {
-    GetSessionFromUserId(id string) (*UserState, bool)
+    GetSessionByUserId(id string) (*UserState, bool)
     SetSessionForUserId(id string, state *UserState)
     DeleteSessionForUserId(id string)
 }
@@ -182,7 +153,7 @@ type MapPluginStorage struct {
     sessions map[string]*UserState
 }
 
-func (storage *MapPluginStorage) GetSessionFromUserId(id string) (*UserState, bool) {
+func (storage *MapPluginStorage) GetSessionByUserId(id string) (*UserState, bool) {
     state, ok := storage.sessions[id]
     return state, ok
 }

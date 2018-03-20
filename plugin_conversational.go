@@ -8,11 +8,11 @@ import (
 // Types
 
 type ConversationalCtx struct {
-	Plugin *ConversationalPlugin
-	Bot *Bot
-	User *User
-	Answer Message
-	UserState *UserState
+	Plugin 	*ConversationalPlugin
+	Bot    	*Bot
+	User   	*User
+	Answer  Message
+	Session *Session
 }
 
 type ConversationalEvents interface {
@@ -24,14 +24,10 @@ type ConversationalEvents interface {
 	OnSessionExpired( ctx *ConversationalCtx )
 }
 
-type StateKey int
-type StatesMap map[StateKey]State
-
 type ConversationalSettings struct {
 	Name           string
 	Trigger        string
-	States         StatesMap
-	StateStartKey  StateKey
+	States         States
 	Events         ConversationalEvents
 	Storage        PluginStorage
 	RemindEvery    time.Duration
@@ -41,49 +37,12 @@ type ConversationalSettings struct {
 type ConversationalPlugin struct {
 	Name           string
 	Trigger        string
-	States         StatesMap
-	StateStartKey  StateKey
+	States         States
 	Events         ConversationalEvents
 	Storage        PluginStorage
 	RemindEvery    time.Duration
 	ExpireAfter    time.Duration
 }
-
-type State struct {
-	WaitForAnswer bool
-	Finish        bool
-	SendQuestion  func(ctx *ConversationalCtx)
-	GetNextKey    func(ctx *ConversationalCtx) (StateKey, bool)
-}
-
-type UserAnswer struct {
-	Answer   string
-	StateKey StateKey
-}
-
-type UserState struct {
-	UserId           string
-	CurrentStateKey  StateKey
-	Answers          []UserAnswer
-	CreatedAt        time.Time
-	Cronology 		 []Message
-	RemindInterval   *tm.Interval
-	ExpireTimeout    *tm.Timeout
-}
-
-func (state *UserState) getAnswersForStateKey(key StateKey) []UserAnswer {
-	answers := []UserAnswer{}
-
-	for _, answ := range state.Answers {
-		if answ.StateKey == key {
-			answers = append(answers, answ)
-		}
-	}
-
-	return answers
-}
-
-// Functions and Methods
 
 func NewConversationalPlugin(settings ConversationalSettings) *ConversationalPlugin {
 	var storage PluginStorage
@@ -92,7 +51,7 @@ func NewConversationalPlugin(settings ConversationalSettings) *ConversationalPlu
 		storage = settings.Storage
 	} else {
 		storage = &MapPluginStorage{
-			sessions: make(map[string]*UserState),
+			sessions: make(map[string]*Session),
 		}
 	}
 
@@ -100,7 +59,6 @@ func NewConversationalPlugin(settings ConversationalSettings) *ConversationalPlu
 		Name:          settings.Name,
 		Trigger:       settings.Trigger,
 		States:        settings.States,
-		StateStartKey: settings.StateStartKey,
 		Events:        settings.Events,
 		RemindEvery:   settings.RemindEvery,
 		ExpireAfter:   settings.ExpireAfter,
@@ -127,122 +85,49 @@ func (pl *ConversationalPlugin) onText(bot *Bot, msg Message) {
 	}
 }
 
-// Run the plugin
+/**
+ * Run the plugin
+ * This function is triggered from onText only if the message contains the plugin trigger,
+ * or the user session in currently running
+ */
 
 func (pl *ConversationalPlugin) run(bot *Bot, msg Message) {
 
+	session := pl.getSession(msg.Sender)
+	pl.setRemindIntervalToSession(session, bot)
+	pl.setExpireTimeoutToSession(session, bot)
+
 	if !pl.isSessionRunningForUser(msg.Sender) {
-
-		userState := pl.getUserState(msg.Sender)
-		pl.setRemindIntervalToUserState(userState, bot)
-		pl.setExpireTimeoutToUserState(userState, bot)
 		pl.startSession(bot, msg)
-
 	} else {
-		
-		// Session is already running
-
-		userState := pl.getUserState(msg.Sender)
-		oldState := pl.States[userState.CurrentStateKey]	
-
-		if !oldState.Finish {
-
-			pl.setRemindIntervalToUserState(userState, bot)
-			pl.setExpireTimeoutToUserState(userState, bot)
-			pl.goToNextState(bot, msg, userState, oldState)
-
-		} else {
-
-			pl.clearRemindIntervalToUserState(userState, bot)
-			pl.clearExpireTimeoutToUserState(userState, bot)
-			pl.endSession(bot, msg, userState)
-		
-		}
+		pl.sendQuestionForSession(session, bot, msg)
 	}
 }
 
-func ( pl *ConversationalPlugin ) RepeatSessionFromCtx( ctx *ConversationalCtx ) {
-	userState := pl.getUserState(ctx.User)
-	pl.sendQuestionForUserState(userState, ctx.Bot, ctx.Answer)
+/**
+ * Timeout methods
+ *
+ */
+
+func ( pl *ConversationalPlugin ) clearExpireTimeoutToSession( session *Session, bot *Bot ) {
+	tm.ClearTimeout(session.ExpireTimeout)
 }
 
-// Utils
-
-func (pl *ConversationalPlugin) goToNextState(bot *Bot, msg Message, userState *UserState, state State) {
-
-	ctx := &ConversationalCtx{
-		Plugin: pl,
-		Bot: bot,
-		User: msg.Sender,
-		UserState: userState,
-		Answer: msg,
-	}
-
-	newIndex, ok := state.GetNextKey(ctx)
-
-	/*
-	 * If the new index is not ok,
-	 * means there was an error in the answer, so we will wait for another input
-	 * Otherwise, we can add the answer to the userState
-	 */
-
-	if ok {
-
-		answer := UserAnswer{
-			msg.Text,
-			userState.CurrentStateKey,
-		}
-		userState.Answers = append(userState.Answers, answer)
-		userState.Cronology = append(userState.Cronology, msg)
-
-		pl_ctx := &ConversationalCtx{
-			Plugin: pl,
-			Bot: bot,
-			User: msg.Sender,
-			Answer: msg,
-			UserState: userState,
-		}
-
-		pl.Events.OnAnswer(pl_ctx)
-
-		userState.CurrentStateKey = newIndex
-		pl.sendQuestionForUserState(userState, bot, msg)
-
-	}
-}
-
-func (pl *ConversationalPlugin) startSession(bot *Bot, msg Message) {
-	userState := pl.getUserState(msg.Sender)
-
-	pl_ctx := &ConversationalCtx{
-		Plugin: pl,
-		Bot: bot,
-		User: msg.Sender,
-		Answer: msg,
-		UserState: userState,
-	}
-
-	pl.Events.OnSessionStart(pl_ctx)
-	pl.sendQuestionForUserState(userState, bot, msg)
-}
-
-func ( pl *ConversationalPlugin ) clearExpireTimeoutToUserState( userState *UserState, bot *Bot ) {
-	tm.ClearTimeout(userState.ExpireTimeout)
-}
-
-func ( pl *ConversationalPlugin ) setExpireTimeoutToUserState( userState *UserState, bot *Bot ) {
+func ( pl *ConversationalPlugin ) setExpireTimeoutToSession( session *Session, bot *Bot ) {
 	if pl.ExpireAfter > 0 {
 
-		pl.clearExpireTimeoutToUserState(userState, bot)
+		pl.clearExpireTimeoutToSession(session, bot)
 
-		userState.ExpireTimeout = tm.SetTimeout(func () {
+		session.ExpireTimeout = tm.SetTimeout(func () {
 
-			pl.Storage.DeleteSessionForUserId(userState.UserId)
+			pl.clearRemindIntervalToSession(session, bot)
+
+			pl.Storage.DeleteSessionForUserId(session.UserId)
 
 			pl_ctx := &ConversationalCtx{
 				Plugin: pl,
 				Bot: bot,
-				UserState: userState,
+				Session: session,
 			}
 
 			pl.Events.OnSessionExpired(pl_ctx)
@@ -251,21 +136,26 @@ func ( pl *ConversationalPlugin ) setExpireTimeoutToUserState( userState *UserSt
 	}
 } 
 
-func ( pl *ConversationalPlugin ) clearRemindIntervalToUserState( userState *UserState, bot *Bot ) {
-	tm.ClearInterval(userState.RemindInterval)
+/**
+ * Interval methods
+ *
+ */
+
+func ( pl *ConversationalPlugin ) clearRemindIntervalToSession( session *Session, bot *Bot ) {
+	tm.ClearInterval(session.RemindInterval)
 }
 
-func ( pl *ConversationalPlugin ) setRemindIntervalToUserState( userState *UserState, bot *Bot ) {
+func ( pl *ConversationalPlugin ) setRemindIntervalToSession( session *Session, bot *Bot ) {
 	if pl.RemindEvery > 0 {
 
-		pl.clearRemindIntervalToUserState(userState, bot)
+		pl.clearRemindIntervalToSession(session, bot)
 
-		userState.RemindInterval = tm.SetInterval(func () {
+		session.RemindInterval = tm.SetInterval(func () {
 
 			pl_ctx := &ConversationalCtx{
 				Plugin: pl,
 				Bot: bot,
-				UserState: userState,
+				Session: session,
 			}
 
 			pl.Events.OnSessionRemind(pl_ctx)
@@ -274,66 +164,87 @@ func ( pl *ConversationalPlugin ) setRemindIntervalToUserState( userState *UserS
 	}
 }
 
-func (pl *ConversationalPlugin) endSession(bot *Bot, msg Message, userState *UserState) {
+/**
+ * Session methods
+ *
+ */
+
+func ( pl *ConversationalPlugin ) RepeatSessionFromCtx( ctx *ConversationalCtx ) {
+	session := pl.getSession(ctx.User)
+	pl.sendQuestionForSession(session, ctx.Bot, ctx.Answer)
+}
+
+func (pl *ConversationalPlugin) startSession(bot *Bot, msg Message) {
+	session := pl.getSession(msg.Sender)
+	session.Running = true
 
 	pl_ctx := &ConversationalCtx{
 		Plugin: pl,
 		Bot: bot,
 		User: msg.Sender,
 		Answer: msg,
-		UserState: userState,
+		Session: session,
+	}
+
+	pl.Events.OnSessionStart(pl_ctx)
+	pl.sendQuestionForSession(session, bot, msg)
+}
+
+func (pl *ConversationalPlugin) endSession(bot *Bot, msg Message, session *Session) {
+
+	pl.clearRemindIntervalToSession(session, bot)
+	pl.clearExpireTimeoutToSession(session, bot)
+
+	pl_ctx := &ConversationalCtx{
+		Plugin: pl,
+		Bot: bot,
+		User: msg.Sender,
+		Answer: msg,
+		Session: session,
 	}
 
 	pl.Events.OnSessionEnd(pl_ctx)
 	pl.Storage.DeleteSessionForUserId(msg.Sender.Id)
 }
 
-func (pl *ConversationalPlugin) getUserState(user *User) *UserState {
+func (pl *ConversationalPlugin) getSession(user *User) *Session {
 
-	userState, ok := pl.Storage.GetSessionFromUserId(user.Id)
+	session, ok := pl.Storage.GetSessionByUserId(user.Id)
 
 	if ok {
-		return userState
+		return session
 	} else {
-		userState := &UserState{
+		session := &Session{
 			UserId: user.Id,
-			CurrentStateKey: pl.StateStartKey,
+			StateIndex: 0,
 			Answers: []UserAnswer{},
 			CreatedAt: time.Now(),
 			Cronology: []Message{},
-			//ReminderInterval:  ,
-			//ExpireTimeout:  ,
 		}
-		pl.Storage.SetSessionForUserId(user.Id, userState)
-		return userState
+		pl.Storage.SetSessionForUserId(user.Id, session)
+		return session
 	}
 }
 
 func (pl *ConversationalPlugin) isSessionRunningForUser(user *User) bool {
-	_, ok := pl.Storage.GetSessionFromUserId(user.Id)
-	return ok
+	session, ok := pl.Storage.GetSessionByUserId(user.Id)
+	if ok && session.Running {
+		return true
+	}
+	return false
 }
 
-func (pl *ConversationalPlugin) sendQuestionForUserState(userState *UserState, bot *Bot, currentMsg Message) {
+func (pl *ConversationalPlugin) sendQuestionForSession(session *Session, bot *Bot, currentMsg Message) {
 
-	state := pl.States[userState.CurrentStateKey]
+	state := pl.States[session.StateIndex]
 
-	if state.SendQuestion != nil {
-
-		ctx := &ConversationalCtx{
-			Plugin: pl,
-			Bot: bot,
-			User: currentMsg.Sender,
-			UserState: userState,
-			Answer: currentMsg,
-		}
-
-		state.SendQuestion(ctx)
+	ctx := &ConversationalCtx{
+		Plugin: pl,
+		Bot: bot,
+		User: currentMsg.Sender,
+		Session: session,
+		Answer: currentMsg,
 	}
 
-	if !state.WaitForAnswer {
-		newMsg := currentMsg
-		newMsg.Text = ""
-		pl.run(bot, newMsg)
-	}
+	state(ctx)
 }
