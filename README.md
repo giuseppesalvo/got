@@ -26,7 +26,7 @@ b, err := got.NewBot( got.BotSettings{
 **Plugin creation**
 ```go
 
-sayhello, _ := got.NewPlugin( got.ConversationalSettings{
+sayhello, _ := got.NewPlugin( got.ReactorSettings{
     Name: "sayhello",
     Trigger: "/hello", // can be a regex with regexp prefix -> "regexp (hi|hello)"
     Events: SayHelloEvents{},
@@ -105,12 +105,12 @@ var ColorsStates got.States = got.States{
 
     func( ctx *got.ConversationalCtx ) {
         ctx.Bot.SendMessage( "What color do you like?", ctx.User )
-        ctx.Bot.WaitForAnswer(ctx)
+        ctx.Session.WaitForAnswer(ctx)
     },
 
     func( ctx *got.ConversationalCtx ) {
         ctx.Bot.SendMessage( "Are you sure? (yes, no)", ctx.User )
-        ctx.Bot.WaitForAnswer(ctx)
+        ctx.Session.WaitForAnswer(ctx)
     },
 
     func( ctx *got.ConversationalCtx ) {
