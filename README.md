@@ -1,5 +1,3 @@
-# Work in progress
-
 # Framework for making bots with go
 
 - Modes 
